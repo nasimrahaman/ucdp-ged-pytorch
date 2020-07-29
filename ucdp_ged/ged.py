@@ -27,6 +27,8 @@ class GED(Dataset):
         "best",
         "high",
         "low",
+        # Source
+        "source_article",
     }
 
     def __init__(
@@ -49,11 +51,11 @@ class GED(Dataset):
             # fmt: on
         self.data_frame = pd.read_csv(self.path)
 
-    def fetch(self, idx: int):
+    def fetch(self, idx: int) -> dict:
         series = self.data_frame.iloc[idx]
         return {field: series[field] for field in self.FIELDS}
 
-    def get(self, idx: int):
+    def get(self, idx: int) -> dict:
         """Fetches the data-sample at index and runs it through the transforms (if any)."""
         sample = self.fetch(idx)
         if self.transforms is not None:
