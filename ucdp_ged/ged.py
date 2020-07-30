@@ -17,9 +17,17 @@ class GED(Dataset):
         # Location
         "latitude",
         "longitude",
-        # Sides and deaths
+        "where_prec",
+        # Sides, dyads and conflicts
         "side_a_new_id",
         "side_b_new_id",
+        "dyad_new_id",
+        "conflict_new_id",
+        # Event meta
+        "event_clarity",
+        "active_year",
+        "type_of_violence",
+        # Deaths
         "deaths_a",
         "deaths_b",
         "deaths_civilians",
@@ -27,8 +35,9 @@ class GED(Dataset):
         "best",
         "high",
         "low",
-        # Source
+        # Source (in natural language)
         "source_article",
+        "source_original",
     }
 
     def __init__(

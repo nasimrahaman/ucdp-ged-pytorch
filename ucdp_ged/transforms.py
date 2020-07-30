@@ -1,6 +1,7 @@
 from typing import List
 from datetime import datetime
 
+import numpy as np
 import torch
 
 try:
@@ -8,6 +9,8 @@ try:
 except ImportError:
     BertTokenizer = None
     pass
+
+from ucdp_ged import constants as C
 
 
 class Transform(object):
@@ -64,8 +67,42 @@ class DateToTimestamp(Transform):
         return sample
 
 
+class DateToDaysSinceOrigin(DateToTimestamp):
+    ORIGIN = datetime.strptime(C.TIME_ORIGIN, "%Y-%m-%d %H:%M:%S.%f")
+
+    def apply(self, sample: dict) -> dict:
+        for key in self.keys:
+            date = datetime.strptime(sample[key], "%Y-%m-%d %H:%M:%S.%f")
+            sample[key] = (date - self.ORIGIN).days
+        return sample
+
+
+class TimeStartEndToMidpoint(Transform):
+    DATE_START = "date_start"
+    DATE_END = "date_end"
+
+    def apply(self, sample: dict) -> dict:
+        sample["date_mid"] = (sample[self.DATE_START] + sample[self.DATE_END]) / 2
+        sample["date_delta"] = (sample[self.DATE_END] - sample[self.DATE_START]) / 2
+        return sample
+
+
 # ---------------------------------
-# ------------ SOURCES ------------
+# ----------- GEOGRAPHY -----------
+# ---------------------------------
+
+
+class LatLonToNVector(Transform):
+    def apply(self, sample: dict) -> dict:
+        lat, lon = np.deg2rad(sample["latitude"]), np.deg2rad(sample["longitude"])
+        sample["n_vector"] = np.array(
+            [np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)]
+        )
+        return sample
+
+
+# ---------------------------------
+# -------------- NLP --------------
 # ---------------------------------
 
 
@@ -76,9 +113,9 @@ class SplitSources(Transform):
 
 
 class SourcesToBertTokens(Transform):
-    def __init__(self, pad_to=128):
+    def __init__(self, max_length: int = 128):
         assert BertTokenizer is not None
-        self.pad_to = pad_to
+        self.max_length = max_length
         self.tokenizer = BertTokenizer.from_pretrained(
             "bert-base-uncased", do_lower_case=True
         )
@@ -91,11 +128,27 @@ class SourcesToBertTokens(Transform):
                 self.tokenizer.encode_plus(
                     text=source,
                     add_special_tokens=True,
-                    max_length=self.pad_to,
+                    max_length=self.max_length,
                     pad_to_max_length=True,
                     return_attention_mask=True,
                     return_tensors="pt",
                 )
             )
         sample["source_tokens"] = tokenized_sources
+        return sample
+
+
+# ---------------------------------
+# --------- RE-LABELING -----------
+# ---------------------------------
+
+
+class RemapIDs(Transform):
+    def apply(self, sample: dict) -> dict:
+        # fmt: off
+        sample["side_a_emb_id"] = C.UNIQUE_ACTOR_IDS.index(sample["side_a_new_id"])
+        sample["side_b_emb_id"] = C.UNIQUE_ACTOR_IDS.index(sample["side_b_new_id"])
+        sample["dyad_emb_id"] = C.UNIQUE_DYAD_IDS.index(sample["dyad_new_id"])
+        sample["conflict_emb_id"] = C.UNIQUE_CONFLICT_IDS.index(sample["conflict_new_id"])
+        # fmt: on
         return sample
