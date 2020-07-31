@@ -101,6 +101,33 @@ class LatLonToNVector(Transform):
         return sample
 
 
+class WherePrecToSpatialDeltaDot(Transform):
+    # fmt: off
+    RADIUS_OF_EARTH = 6371  # KM
+    WHERE_PREC_TO_ARCLEN_MAPPING = {  # KM
+        1: 0,
+        2: 25,      # This is specified in the code-book
+        3: 50,
+        4: 100,
+        5: 250,
+        6: 500,     # This corresponds to the radius of the circle
+                    # with the same area as the average country.
+        7: 1000,
+    }
+    # fmt: on
+
+    def apply(self, sample: dict) -> dict:
+        arc_len = self.WHERE_PREC_TO_ARCLEN_MAPPING[sample["where_prec"]]
+        # Recall that for angles in radians:
+        #   arc-len = angle * radius
+        # Also, the delta-dot is the maximum dot product a n-vector is allowed to
+        # have with the center n-vector where the event happened, given that it's
+        # known/assumed that the event happened within a certain radius.
+        delta_dot = np.cos(arc_len / self.RADIUS_OF_EARTH)
+        sample["n_vector_delta_dot"] = delta_dot
+        return sample
+
+
 # ---------------------------------
 # -------------- NLP --------------
 # ---------------------------------
@@ -113,6 +140,7 @@ class SplitSources(Transform):
 
 
 class SourcesToBertTokens(Transform):
+
     def __init__(self, max_length: int = 128):
         assert BertTokenizer is not None
         self.max_length = max_length

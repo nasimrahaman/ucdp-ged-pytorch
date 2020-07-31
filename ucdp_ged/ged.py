@@ -1,4 +1,6 @@
 import pandas as pd
+import torch
+
 from torch.utils.data.dataset import Dataset
 from typing import Callable, List
 
@@ -79,5 +81,10 @@ class GED(Dataset):
 
     @classmethod
     def collate_fn(cls, samples: List[dict]):
-        # TODO
-        pass
+        keys = samples[0].keys()
+        batch = {}
+        for key in keys:
+            batch[key] = [sample[key] for sample in samples]
+            if torch.is_tensor(batch[key][0]):
+                batch[key] = torch.stack(batch[key])
+        return batch
