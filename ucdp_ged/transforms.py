@@ -1,6 +1,7 @@
 from typing import List
 from datetime import datetime
 
+import random
 import numpy as np
 import torch
 
@@ -14,15 +15,34 @@ from ucdp_ged import constants as C
 
 
 class Transform(object):
+    """Base class for a general transform."""
+
     def apply(self, sample: dict) -> dict:
+        """
+        This function can be overwritten.
+
+        Parameters
+        ----------
+        sample : dict
+            A dictionary representing the sample. Can contain arbitrary keys
+            and values, i.e. they need not be pytorch tensors.
+
+        Returns
+        -------
+        dict
+            The transformed sample dictionary.
+        """
         return sample
 
     def __call__(self, sample: dict) -> dict:
+        """Don't overwrite this if you don't have to."""
         sample = dict(sample)
         return self.apply(sample)
 
 
 class Compose(Transform):
+    """Chains together multiple transforms."""
+
     def __init__(self, transforms: List[Transform]):
         self.transforms = list(transforms)
 
@@ -38,13 +58,22 @@ class Compose(Transform):
 
 
 class AsTensor(Transform):
+    """
+    Converts fields in the sample dictionary to pytorch tensors if the
+    values are of type:
+        * int
+        * float
+        * numpy.ndarray.
+    """
+
     def apply(self, sample: dict) -> dict:
         for key in sample:
-            if torch.is_tensor(sample[key]):
+            if isinstance(sample[key], (int, float)):
+                sample[key] = torch.tensor(sample[key])
+            elif isinstance(sample[key], np.ndarray):
+                sample[key] = torch.from_numpy(sample[key])
+            else:
                 continue
-            if not isinstance(sample[key], (int, float)):
-                continue
-            sample[key] = torch.tensor(sample[key])
         return sample
 
 
@@ -54,6 +83,11 @@ class AsTensor(Transform):
 
 
 class DateToTimestamp(Transform):
+    """
+    Converts the date objects (specified in the `KEYS` class attribute)
+    to UNIX timestamps (i.e. seconds since 1970).
+    """
+
     KEYS = {"date_start", "date_end"}
 
     def __init__(self, keys=None):
@@ -68,6 +102,10 @@ class DateToTimestamp(Transform):
 
 
 class DateToDaysSinceOrigin(DateToTimestamp):
+    """
+    Converts the date objects (specified in the `KEYS` class attribute) to the
+    number of days since the `TIME_ORIGIN`, as set in `constants.py`.
+    """
     ORIGIN = datetime.strptime(C.TIME_ORIGIN, "%Y-%m-%d %H:%M:%S.%f")
 
     def apply(self, sample: dict) -> dict:
@@ -78,6 +116,11 @@ class DateToDaysSinceOrigin(DateToTimestamp):
 
 
 class TimeStartEndToMidpoint(Transform):
+    """
+    Computes the temporal mid-point of the conflict from DATE_START and DATE_END
+    as `date_mid`. Also computes a quantity `date_delta` such that
+    `2 * date_delta` gives the estimated duration of the conflict.
+    """
     DATE_START = "date_start"
     DATE_END = "date_end"
 
@@ -93,6 +136,7 @@ class TimeStartEndToMidpoint(Transform):
 
 
 class LatLonToNVector(Transform):
+    """Converts Latitude and Longitude to the n-Vector representation."""
     def apply(self, sample: dict) -> dict:
         lat, lon = np.deg2rad(sample["latitude"]), np.deg2rad(sample["longitude"])
         sample["n_vector"] = np.array(
@@ -102,10 +146,18 @@ class LatLonToNVector(Transform):
 
 
 class WherePrecToSpatialDeltaDot(Transform):
+    """
+    Represents the spatial precision of the known events as a positive scalar,
+    which gives the maximum absolute dot product any possible n-Vector can have
+    with the spatial mid-point of the conflict.
+
+    To do this, we must assume a mapping from the precision value stated in the
+    code-book to the radius of the spatial circle where the event could have happened.
+    """
     # fmt: off
     RADIUS_OF_EARTH = 6371  # KM
     WHERE_PREC_TO_ARCLEN_MAPPING = {  # KM
-        1: 0,
+        1: 1,
         2: 25,      # This is specified in the code-book
         3: 50,
         4: 100,
@@ -133,36 +185,23 @@ class WherePrecToSpatialDeltaDot(Transform):
 # ---------------------------------
 
 
-class SplitSources(Transform):
-    def apply(self, sample: dict) -> dict:
-        sample["source_article"] = sample["source_article"].split(";")
-        return sample
+class PruneAndSepSources(Transform):
+    """
+    Splits the sources by a SEP token after removing duplicates.
 
+    Optionally, if `keep_num_sources` is specified, samples as many sources
+    while discarding the rest (can be safely set to 20).
+    """
+    SEP_TOKEN = "[SEP]"
 
-class SourcesToBertTokens(Transform):
-
-    def __init__(self, max_length: int = 128):
-        assert BertTokenizer is not None
-        self.max_length = max_length
-        self.tokenizer = BertTokenizer.from_pretrained(
-            "bert-base-uncased", do_lower_case=True
-        )
+    def __init__(self, keep_num_sources=None):
+        self.keep_num_sources = keep_num_sources
 
     def apply(self, sample: dict) -> dict:
-        assert isinstance(sample["source_article"], list)
-        tokenized_sources = []
-        for source in sample["source_article"]:
-            tokenized_sources.append(
-                self.tokenizer.encode_plus(
-                    text=source,
-                    add_special_tokens=True,
-                    max_length=self.max_length,
-                    pad_to_max_length=True,
-                    return_attention_mask=True,
-                    return_tensors="pt",
-                )
-            )
-        sample["source_tokens"] = tokenized_sources
+        sources = set(sample["source_article"].split(";"))
+        if self.keep_num_sources is not None and len(sources) > self.keep_num_sources:
+            sources = random.sample(sources, self.keep_num_sources)
+        sample["source_article"] = self.SEP_TOKEN.join(sources)
         return sample
 
 
@@ -172,6 +211,10 @@ class SourcesToBertTokens(Transform):
 
 
 class RemapIDs(Transform):
+    """
+    Relabels the ID's of actors, dyads and conflicts such that they are
+    contiguous and compatible with pytorch's Embedding module.
+    """
     def apply(self, sample: dict) -> dict:
         # fmt: off
         sample["side_a_emb_id"] = C.UNIQUE_ACTOR_IDS.index(sample["side_a_new_id"])
