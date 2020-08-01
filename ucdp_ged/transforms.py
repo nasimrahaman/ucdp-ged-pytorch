@@ -5,12 +5,6 @@ import random
 import numpy as np
 import torch
 
-try:
-    from transformers import BertTokenizer
-except ImportError:
-    BertTokenizer = None
-    pass
-
 from ucdp_ged import constants as C
 
 
