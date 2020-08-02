@@ -2,8 +2,7 @@
 
 Batteries-included PyTorch data-loaders for [Uppsala Conflict Data Program](https://ucdp.uu.se/) [Georeferenced Event Dataset](https://ucdp.uu.se/downloads/index.html#ged_global). 
 
-## Example
-
+**Disclaimer:** this python package is **not** officially distributed by UCDP. For questions about the dataset, please refer to the official [UCDP homepage](https://www.pcr.uu.se/research/ucdp/). 
 
 ## Installation
 
