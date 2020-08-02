@@ -48,6 +48,17 @@ class GED(Dataset):
         data_frame: pd.DataFrame = None,
         transforms: Callable = None,
     ):
+        """
+        Parameters
+        ----------
+        path : str
+            Path to the dataset. Required if `data_frame` is not provided.
+        data_frame : pandas.DataFrame
+            Pandas Dataframe. Required if `path` is not provided, takes precedence
+            if it is.
+        transforms : Callable
+            A transform function that applies prepro primitives.
+        """
         self.path = path
         self.data_frame = data_frame
         self.transforms = transforms
@@ -79,12 +90,3 @@ class GED(Dataset):
     def __getitem__(self, item):
         return self.get(item)
 
-    @classmethod
-    def collate_fn(cls, samples: List[dict]):
-        keys = samples[0].keys()
-        batch = {}
-        for key in keys:
-            batch[key] = [sample[key] for sample in samples]
-            if torch.is_tensor(batch[key][0]):
-                batch[key] = torch.stack(batch[key])
-        return batch

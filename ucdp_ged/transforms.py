@@ -62,7 +62,19 @@ class AsTensor(Transform):
 
     def apply(self, sample: dict) -> dict:
         for key in sample:
-            if isinstance(sample[key], (int, float)):
+            if isinstance(
+                sample[key],
+                (
+                    int,
+                    np.int,
+                    np.int32,
+                    np.int64,
+                    float,
+                    np.float,
+                    np.float32,
+                    np.float64,
+                ),
+            ):
                 sample[key] = torch.tensor(sample[key])
             elif isinstance(sample[key], np.ndarray):
                 sample[key] = torch.from_numpy(sample[key])
@@ -100,6 +112,7 @@ class DateToDaysSinceOrigin(DateToTimestamp):
     Converts the date objects (specified in the `KEYS` class attribute) to the
     number of days since the `TIME_ORIGIN`, as set in `constants.py`.
     """
+
     ORIGIN = datetime.strptime(C.TIME_ORIGIN, "%Y-%m-%d %H:%M:%S.%f")
 
     def apply(self, sample: dict) -> dict:
@@ -115,6 +128,7 @@ class TimeStartEndToMidpoint(Transform):
     as `date_mid`. Also computes a quantity `date_delta` such that
     `2 * date_delta` gives the estimated duration of the conflict.
     """
+
     DATE_START = "date_start"
     DATE_END = "date_end"
 
@@ -131,6 +145,7 @@ class TimeStartEndToMidpoint(Transform):
 
 class LatLonToNVector(Transform):
     """Converts Latitude and Longitude to the n-Vector representation."""
+
     def apply(self, sample: dict) -> dict:
         lat, lon = np.deg2rad(sample["latitude"]), np.deg2rad(sample["longitude"])
         sample["n_vector"] = np.array(
@@ -148,6 +163,7 @@ class WherePrecToSpatialDeltaDot(Transform):
     To do this, we must assume a mapping from the precision value stated in the
     code-book to the radius of the spatial circle where the event could have happened.
     """
+
     # fmt: off
     RADIUS_OF_EARTH = 6371  # KM
     WHERE_PREC_TO_ARCLEN_MAPPING = {  # KM
@@ -186,6 +202,7 @@ class PruneAndSepSources(Transform):
     Optionally, if `keep_num_sources` is specified, samples as many sources
     while discarding the rest (can be safely set to 20).
     """
+
     SEP_TOKEN = "[SEP]"
 
     def __init__(self, keep_num_sources=None):
@@ -209,6 +226,7 @@ class RemapIDs(Transform):
     Relabels the ID's of actors, dyads and conflicts such that they are
     contiguous and compatible with pytorch's Embedding module.
     """
+
     def apply(self, sample: dict) -> dict:
         # fmt: off
         sample["side_a_emb_id"] = C.UNIQUE_ACTOR_IDS.index(sample["side_a_new_id"])
@@ -216,4 +234,17 @@ class RemapIDs(Transform):
         sample["dyad_emb_id"] = C.UNIQUE_DYAD_IDS.index(sample["dyad_new_id"])
         sample["conflict_emb_id"] = C.UNIQUE_CONFLICT_IDS.index(sample["conflict_new_id"])
         # fmt: on
+        return sample
+
+
+class RemapCategories(Transform):
+    def __init__(self, keys=None):
+        if isinstance(keys, str):
+            self.keys = [keys]
+        else:
+            self.keys = list(C.CATEGORICAL_VARIABLES.keys()) if keys is None else keys
+
+    def apply(self, sample: dict) -> dict:
+        for key in self.keys:
+            sample[key] = C.CATEGORICAL_VARIABLES[key].index(sample[key])
         return sample
