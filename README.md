@@ -2,7 +2,7 @@
 
 Batteries-included PyTorch data-loaders for [Uppsala Conflict Data Program](https://ucdp.uu.se/) [Georeferenced Event Dataset](https://ucdp.uu.se/downloads/index.html#ged_global). 
 
-**Disclaimer:** this python package is **not** officially distributed by UCDP. For questions about the dataset, please refer to the official [UCDP homepage](https://www.pcr.uu.se/research/ucdp/). 
+**Disclaimer:** this python package is **not** officially distributed by UCDP. For questions about the dataset, please refer to the [UCDP homepage](https://www.pcr.uu.se/research/ucdp/). 
 
 ## Installation
 
@@ -56,3 +56,8 @@ for sample in ged_loader:
     # sample is a dictionary with various keys. 
     ...
 ```
+
+# Contributors
+
+* Nasim Rahaman ([Max-Planck Institute for Intelligent Systems](https://ei.is.mpg.de/), Tübingen & [Mila](https://mila.quebec/), Québec)
+* ...
