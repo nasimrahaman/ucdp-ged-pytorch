@@ -92,6 +92,16 @@ class DateToTimestamp(Transform):
     """
     Converts the date objects (specified in the `KEYS` class attribute)
     to UNIX timestamps (i.e. seconds since 1970).
+
+    Reads
+    -----
+    date_start : str
+    date_end : str
+
+    Writes
+    ------
+    date_start : float
+    date_end : float
     """
 
     KEYS = {"date_start", "date_end"}
@@ -111,6 +121,16 @@ class DateToDaysSinceOrigin(DateToTimestamp):
     """
     Converts the date objects (specified in the `KEYS` class attribute) to the
     number of days since the `TIME_ORIGIN`, as set in `constants.py`.
+
+    Reads
+    -----
+    date_start : str
+    date_end : str
+
+    Writes
+    ------
+    date_start : int
+    date_end : int
     """
 
     ORIGIN = datetime.strptime(C.TIME_ORIGIN, "%Y-%m-%d %H:%M:%S.%f")
@@ -127,6 +147,16 @@ class TimeStartEndToMidpoint(Transform):
     Computes the temporal mid-point of the conflict from DATE_START and DATE_END
     as `date_mid`. Also computes a quantity `date_delta` such that
     `2 * date_delta` gives the estimated duration of the conflict.
+
+    Reads
+    -----
+    date_start : str
+    date_end : str
+
+    Writes
+    ------
+    date_mid : float
+    date_delta : float
     """
 
     DATE_START = "date_start"
@@ -144,7 +174,18 @@ class TimeStartEndToMidpoint(Transform):
 
 
 class LatLonToNVector(Transform):
-    """Converts Latitude and Longitude to the n-Vector representation."""
+    """
+    Converts Latitude and Longitude to the n-Vector representation.
+
+    Reads
+    -----
+    latitude : float
+    longitude : float
+
+    Writes
+    ------
+    n_vector : numpy.ndarray
+    """
 
     def apply(self, sample: dict) -> dict:
         lat, lon = np.deg2rad(sample["latitude"]), np.deg2rad(sample["longitude"])
@@ -154,14 +195,51 @@ class LatLonToNVector(Transform):
         return sample
 
 
+class NormalizeLatLon(Transform):
+    """
+    Converts Latitude to a scalar between 0 and 1, and longitude to
+    one between 0 and 2. Each degree (of lat or lon) corresponds to
+    1/180 units after normalization.
+
+    Reads
+    -----
+    latitude : float
+    longitude : float
+
+    Writes
+    ------
+    normed_latitude : float
+    normed_longitude: float
+    """
+
+    def apply(self, sample: dict) -> dict:
+        lat, lon = sample["latitude"], sample["longitude"]
+        # lat runs from +90 to -90; normalize between [0, 1]
+        lat = (lat + 90) / 180
+        # lon runs from -180 to +180; normalize between [0, 2]
+        lon = (lon + 180) / 180
+        # Done
+        sample["normed_latitude"] = lat
+        sample["normed_longitude"] = lon
+        return sample
+
+
 class WherePrecToSpatialDeltaDot(Transform):
     """
-    Represents the spatial precision of the known events as a positive scalar,
+    Represents the spatial precision of a given event as a positive scalar,
     which gives the maximum absolute dot product any possible n-Vector can have
     with the spatial mid-point of the conflict.
 
     To do this, we must assume a mapping from the precision value stated in the
     code-book to the radius of the spatial circle where the event could have happened.
+
+    Reads
+    -----
+    where_prec : int
+
+    Writes
+    ------
+    n_vector_delta_dot : float
     """
 
     # fmt: off
@@ -190,6 +268,19 @@ class WherePrecToSpatialDeltaDot(Transform):
         return sample
 
 
+class NormalizeWherePrec(WherePrecToSpatialDeltaDot):
+    """
+    Represents the spatial precision of a given event as a positive quantity
+    that matches the units in `NormalizeLatLon`. In other words, the radius
+    of the circle inside which the event happened is converted to the
+    """
+    def apply(self, sample: dict) -> dict:
+        arc_len = self.WHERE_PREC_TO_ARCLEN_MAPPING[sample["where_prec"]]
+        arc_angle = np.rad2deg(arc_len / self.RADIUS_OF_EARTH)
+        sample["normed_where_prec"] = arc_angle / 180
+        return sample
+
+
 # ---------------------------------
 # -------------- NLP --------------
 # ---------------------------------
@@ -201,6 +292,14 @@ class PruneAndSepSources(Transform):
 
     Optionally, if `keep_num_sources` is specified, samples as many sources
     while discarding the rest (can be safely set to 20).
+
+    Reads
+    -----
+    source_article : str
+
+    Writes
+    ------
+    source_article : str
     """
 
     SEP_TOKEN = "[SEP]"
@@ -225,6 +324,20 @@ class RemapIDs(Transform):
     """
     Relabels the ID's of actors, dyads and conflicts such that they are
     contiguous and compatible with pytorch's Embedding module.
+
+    Reads
+    -----
+    side_a_new_id : int
+    side_b_new_id : int
+    dyad_new_id: int
+    conflict_new_id: int
+
+    Writes
+    ------
+    side_a_emb_id : int
+    side_b_emb_id : int
+    dyad_emb_id: int
+    conflict_emb_id: int
     """
 
     def apply(self, sample: dict) -> dict:
@@ -238,6 +351,11 @@ class RemapIDs(Transform):
 
 
 class RemapCategories(Transform):
+    """
+    Relabels the categories of the specified key to be contiguous.
+    For a list of available keys, please refer to the keys of the
+    dictionary defined in `ucdp_ged.constants.CATEGORICAL_VARIABLES`.
+    """
     def __init__(self, keys=None):
         if isinstance(keys, str):
             self.keys = [keys]
