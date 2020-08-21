@@ -308,7 +308,7 @@ class PruneAndSepSources(Transform):
         self.keep_num_sources = keep_num_sources
 
     def apply(self, sample: dict) -> dict:
-        sources = set(sample["source_article"].split(";"))
+        sources = set(str(sample["source_article"]).split(";"))
         if self.keep_num_sources is not None and len(sources) > self.keep_num_sources:
             sources = random.sample(sources, self.keep_num_sources)
         sample["source_article"] = self.SEP_TOKEN.join(sources)

@@ -68,7 +68,7 @@ class GED(Dataset):
         if self.data_frame is None:
             # fmt: off
             assert self.path is not None, (
-                "Path must be provided if no pandas data-frame is provided."
+                "Path must be provided if no pandas events-frame is provided."
             )
             # fmt: on
         self.data_frame = pd.read_csv(self.path)
