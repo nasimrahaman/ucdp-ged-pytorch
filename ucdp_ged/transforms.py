@@ -274,6 +274,7 @@ class NormalizeWherePrec(WherePrecToSpatialDeltaDot):
     that matches the units in `NormalizeLatLon`. In other words, the radius
     of the circle inside which the event happened is converted to the
     """
+
     def apply(self, sample: dict) -> dict:
         arc_len = self.WHERE_PREC_TO_ARCLEN_MAPPING[sample["where_prec"]]
         arc_angle = np.rad2deg(arc_len / self.RADIUS_OF_EARTH)
@@ -356,6 +357,7 @@ class RemapCategories(Transform):
     For a list of available keys, please refer to the keys of the
     dictionary defined in `ucdp_ged.constants.CATEGORICAL_VARIABLES`.
     """
+
     def __init__(self, keys=None):
         if isinstance(keys, str):
             self.keys = [keys]
@@ -365,4 +367,38 @@ class RemapCategories(Transform):
     def apply(self, sample: dict) -> dict:
         for key in self.keys:
             sample[key] = C.CATEGORICAL_VARIABLES[key].index(sample[key])
+        return sample
+
+
+# ---------------------------------
+# --------- CORRECTIONS -----------
+# ---------------------------------
+
+
+class ComputeTrueDeathCount(Transform):
+    """
+    The way civilians deaths are handled in UCDP-GED is somewhat peculiar, in that
+    civilian deaths are not listed under `deaths_b` even though `side_b_new_id`
+    corresponds to that of civilians. Instead, they are reported under
+    `deaths_civilians`. This transform corrects for that.
+
+    Reads
+    -----
+    deaths_a : int
+    deaths_b : int
+
+    Writes
+    ------
+    deaths_a_true : int
+    deaths_b_true : int
+    """
+
+    def apply(self, sample: dict) -> dict:
+        # Note that civilians can never be side_a, so deaths_a_true = deaths_a`.
+        sample["deaths_a_true"] = sample["deaths_a"]
+        sample["deaths_b_true"] = (
+            sample["deaths_civilians"]
+            if sample["side_b_new_id"] == C.CIVILIAN_ACTOR_ID
+            else sample["deaths_b"]
+        )
         return sample
