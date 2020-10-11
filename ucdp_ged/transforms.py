@@ -58,7 +58,15 @@ class AsTensor(Transform):
         * int
         * float
         * numpy.ndarray.
+    Additionally, if the conversion is successful and `as_core_dtype = True`,
+    then the tensor is converted to float32 (torch.float) or int64 (torch.long).
+    Additionally, if prefer_float_over_long is set to true, integers are converted
+    to floats.
     """
+
+    def __init__(self, as_core_dtype=False, prefer_float_over_long=False):
+        self.as_core_dtype = as_core_dtype
+        self.prefer_float_over_long = prefer_float_over_long
 
     def apply(self, sample: dict) -> dict:
         for key in sample:
@@ -80,6 +88,14 @@ class AsTensor(Transform):
                 sample[key] = torch.from_numpy(sample[key])
             else:
                 continue
+            if self.as_core_dtype:
+                if sample[key].dtype in [torch.float16, torch.float32, torch.float64]:
+                    sample[key] = sample[key].float()
+                elif sample[key].dtype in [torch.int32, torch.int64]:
+                    if self.prefer_float_over_long:
+                        sample[key] = sample[key].float()
+                    else:
+                        sample[key] = sample[key].long()
         return sample
 
 
